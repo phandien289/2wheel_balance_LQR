@@ -72,7 +72,7 @@ MPU6050 + Encoder
 The robot is modeled using a linearized state-space representation:
 
 ```math
-x = [position, velocity, angle, angular_velocity]
+x = [position, velocity, angle, angular velocity]
 ```
 
 Control law:
@@ -98,7 +98,6 @@ Where:
  ├── Motor_Control
  ├── LQR_Controller
  ├── FreeRTOS
- └── UART_Debug
 ```
 
 ---
@@ -109,9 +108,7 @@ Where:
 |------|-----------|
 | IMU Task | Read MPU6050 sensor |
 | Encoder Task | Read wheel encoder |
-| Control Task | Execute LQR control loop |
-| Motor Task | Generate PWM signal |
-| UART Task | Debugging & tuning |
+| Control Task | Execute LQR control loop and generate PWM signal  |
 
 ---
 
