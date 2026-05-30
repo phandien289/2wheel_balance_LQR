@@ -34,7 +34,7 @@ The system integrates:
 - **Quadrature Encoders** — wheel velocity and position feedback
 - **LQR Controller** — optimal state-space control law
 - **FreeRTOS** — preemptive multi-task real-time scheduling
-- **BTS7960 Motor Driver** — high-current PWM motor drive
+- **MDD10A Dual Channel Motor Driver** — 2 channel high-current PWM motor drive
 
 ---
 
@@ -43,7 +43,7 @@ The system integrates:
 | Feature | Description |
 |---|---|
 | Real-time balancing | LQR control loop running at ~200Hz via FreeRTOS |
-| State estimation | Complementary filter fusing IMU + encoder data |
+| State estimation | Complementary filter fusing IMU |
 | LQR optimal control | Minimizes state error and control effort simultaneously |
 | Encoder feedback | Closed-loop velocity and position control |
 | FreeRTOS tasks | Independent tasks for Encoders, IMU, and Control |
@@ -351,7 +351,7 @@ K = lqr(A, B, Q, R);
 
 Then paste **K** into `freetos.c`, in Control_Task:
 ```c
-const K[4] = {..., ..., ..., ...};
+const float K[4] = {-6.1237f, 3.2553f , -30.8598f, -7.1295f};
 ```
 
 ---
@@ -369,7 +369,7 @@ const K[4] = {..., ..., ..., ...};
 
 | Challenge | Solution |
 |---|---|
-| IMU sensor noise | Complementary filter (α = 0.98) + MPU6050 DLPF enabled |
+| IMU sensor noise | Complementary filter (α = 0.8) + MPU6050 DLPF enabled |
 | Motor dead-zone | Dead-zone compensation offset in PWM output stage |
 | FreeRTOS timing jitter | High-priority tasks with fixed-period `vTaskDelayUntil` |
 | LQR gain tuning | Iterative Q/R adjustment starting from conservative values |
