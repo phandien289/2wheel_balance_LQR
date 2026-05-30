@@ -119,6 +119,14 @@ Encoders (x2)              │                              │
 ---
 
 ## 🧮 LQR Control Algorithm
+<p align="center">
+<img width="285" height="336" alt="image" src="https://github.com/user-attachments/assets/d270bff4-e59b-49e3-a8a3-679dd2655822" /> </p>
+  
+<p align="center">
+<img width="351" height="336" alt="image" src="https://github.com/user-attachments/assets/c611fb85-cd80-400b-bebc-c845bd3bdba8" />
+<img width="331" height="336" alt="image" src="https://github.com/user-attachments/assets/208daeac-8e44-4ad2-bb50-34a405983d00" />
+
+</p>
 
 | Symbol                | Unit   | Description                        |
 |-----------------------|--------|------------------------------------|
@@ -207,11 +215,12 @@ We need to reformulate these equations as follows:
 
 Solve equations (1), (2), and (3) using MATLAB and the `solve` function.
 
-![Dynamic Equation](Resources/Image/Picture3.png)
+<img width="1217" height="252" alt="image" src="https://github.com/user-attachments/assets/f0279c36-2ce6-4640-9d3b-c14f62e8b086" />
 
 Result calculation
 
-![Dynamic Equation](Resources/Image/Picture4.png)
+<img width="1332" height="374" alt="image" src="https://github.com/user-attachments/assets/cd658a2f-619b-4ac3-80cc-d2ff944c0349" />
+
 ### Linearize the motion equations 
 
 Apply the state-space function to the robot system as follows:
@@ -295,19 +304,19 @@ Elements of both matrices will be calculated by MATLAB.
 2wheel_balance_LQR/
 ├── Core/
 │   ├── Inc/
-│   │   ├── mpu6050.h          # IMU driver header
-│   │   ├── encoder.h          # Encoder driver header
+│   │   ├── mpu6050.h          # MPU6050 library header
+│   │   ├── encoder.h          # Encoder header
 │   │   ├── encoderspeed.h     # Position and Velocity header
 │   │   ├── motor.h            # PWM motor control library header
-│   │   ├── FreeRTOSConfig.h   # LQR gain matrix & control law
+│   │   ├── FreeRTOSConfig.h   # Header file for freetos configuration
 │   │   └── param.h            # Robot Parameters header
 │   └── Src/
-│       ├── main.c             # FreeRTOS init & task creation
+│       ├── main.c             # IPU, Encoder and FreeRTOS init
 │       ├── mpu6050.c          # I2C read + DMP/raw data
 │       ├── encoderspeed.c     # Get position and velocity from encoder
 │       ├── encoder.c          # TIM2/TIM3 encoder mode
 │       ├── motor.c            # PWM motor control library
-│       ├── freetos.c          # u = -Kx implementation
+│       ├── freetos.c          # Tasks schedule for robot control
 │       └── param.c            # Robot Parameters 
 ├── Drivers/                   # STM32 HAL + FreeRTOS
 ├── matlab/
@@ -340,7 +349,7 @@ R = 0.1;                    % Input cost
 K = lqr(A, B, Q, R);
 ```
 
-Then paste **K** into `freetos.c`:
+Then paste **K** into `freetos.c`, in Control_Task:
 ```c
 const K[4] = {..., ..., ..., ...};
 ```
