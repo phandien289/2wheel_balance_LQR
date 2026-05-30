@@ -1,8 +1,7 @@
-# 🤖 2wheel_balance_LQR
+# 🤖 Two-Wheel Self-Balancing Robot — LQR State-Space Control
 
 <p align="center">
-  <b>Real-Time Self-Balancing Robot using STM32 & LQR Control</b><br/>
-  A two-wheel self-balancing robot featuring state-space LQR control, FreeRTOS task scheduling, and encoder + IMU sensor fusion.
+  <b>Real-Time Embedded Control System on STM32 with LQR Optimal Control, FreeRTOS, and Sensor Fusion</b>
 </p>
 
 <p align="center">
@@ -15,55 +14,62 @@
 
 ---
 
-## 📷 Robot Prototype
+## 📋 Table of Contents
 
-<p align="center">
-  <img width="500" height="345" alt="543882059248884855" src="https://github.com/user-attachments/assets/67871467-8eaf-4b0b-8f27-34ca6338d15b" />
-  <img width="500" height="345" alt="2aOboQZs0OPH10wclpTMCuWFinT5sMIP2QIX7ABM" src="https://github.com/user-attachments/assets/0c0362a6-922c-489f-bd6a-196827e47cd7" />
-</p>
+- [Overview](#-overview)
+- [Key Highlights](#-key-highlights)
+- [Hardware Design](#-hardware-design)
+- [System Architecture](#️-system-architecture)
+- [Mathematical Modeling & LQR Design](#-mathematical-modeling--lqr-design)
+- [FreeRTOS Task Structure](#-freertos-task-structure)
+- [Software Structure](#-software-structure)
+- [Getting Started](#-getting-started)
+- [Results & Performance](#-results--performance)
+- [Challenges & Solutions](#️-challenges--solutions)
+- [Future Improvements](#-future-improvements)
+- [Demo](#-demo)
 
 ---
 
 ## 📌 Overview
 
-This project develops a real-time two-wheel self-balancing robot using **state-space control** instead of classical PID. By applying a **Linear Quadratic Regulator (LQR)**, the robot achieves superior stability and smoother dynamic response.
+This project implements a **real-time two-wheel self-balancing robot** using **state-space LQR (Linear Quadratic Regulator)** control — replacing conventional PID with an optimal control approach that simultaneously minimizes state error and control effort.
 
-The system integrates:
-- **STM32F103C8T6** — embedded real-time processing
-- **MPU6050** — angle and angular velocity measurement via I²C
-- **Quadrature Encoders** — wheel velocity and position feedback
-- **LQR Controller** — optimal state-space control law
-- **FreeRTOS** — preemptive multi-task real-time scheduling
-- **MDD10A Dual Channel Motor Driver** — 2 channel high-current PWM motor drive
+The system is built around an **STM32F103C8T6** microcontroller running **FreeRTOS**, with sensor fusion from an **MPU6050 IMU** and dual **quadrature encoders** for full state feedback.
+
+**Why LQR over PID?**
+Classical PID controls a single output using one error signal. LQR operates on the full state vector $x = [\theta,\ \dot{\theta},\ \psi,\ \dot{\psi},\ \phi,\ \dot{\phi}]^\top$, enabling coordinated control of position, velocity, tilt, and rotation simultaneously. This yields superior disturbance rejection and smoother dynamic response.
 
 ---
 
-## ✨ Features
+## ✨ Key Highlights
 
-| Feature | Description |
+| Capability | Detail |
 |---|---|
-| Real-time balancing | LQR control loop running at ~200Hz via FreeRTOS |
-| State estimation | Complementary filter fusing IMU |
-| LQR optimal control | Minimizes state error and control effort simultaneously |
-| Encoder feedback | Closed-loop velocity and position control |
-| FreeRTOS tasks | Independent tasks for Encoders, IMU, and Control |
+| Control algorithm | LQR optimal state-space control (`u = −Kx`) |
+| Control loop rate | 200 Hz via FreeRTOS `vTaskDelayUntil` |
+| State estimation | Complementary filter (α = 0.98) fusing IMU accelerometer + gyroscope |
+| Encoder feedback | Quadrature encoding via TIM2/TIM3 hardware timers |
+| Real-time scheduling | FreeRTOS preemptive multi-task, priority-assigned tasks |
+| Motor drive | MDD10A dual-channel H-Bridge, PWM with dead-zone compensation |
+| Modeling tool | MATLAB Symbolic Toolbox + `lqr()` for gain computation |
 
 ---
 
-## 🔧 Hardware Components
+## 🔧 Hardware Design
+
+### Components
 
 | Component | Model | Role |
 |---|---|---|
-| Microcontroller | STM32F103C8T6 (Blue Pill) | Main processor |
-| IMU Sensor | MPU6050 | Angle & angular velocity (I2C) |
+| Microcontroller | STM32F103C8T6 (Blue Pill) | Main processor — 72 MHz ARM Cortex-M3 |
+| IMU Sensor | MPU6050 | Tilt angle & angular velocity via I²C |
 | DC Gear Motors | JGB37-520 | Left & right drive wheels |
 | Motor Driver | MDD10A Dual Channel | High-current H-Bridge PWM driver |
-| Encoders | Quadrature (x2) | Wheel speed & position feedback |
+| Encoders | Quadrature (×2) | Wheel speed & position feedback |
 | Power Supply | Li-ion Battery Pack | 7.4 V – 11.1 V |
 
----
-
-## 🗺️ Wiring Diagram
+### Wiring Diagram
 
 ```
 MPU6050                     STM32F103C8T6
@@ -77,56 +83,54 @@ MPU6050                     STM32F103C8T6
 MDD10A Motor Driver        │                              │
 ┌──────────────┐           │                              │
 │ DIR1 ────────┼───────────┤ PA2  (DIR Motor 1)           │
-│ PWM1 ────────┼───────────┤ PA8  (TIM1_CH1 — Motor 1 PWM)│
-│ DIR2  ───────┼───────────┤ PA5  (DIR Motor 2)           │
-│ PWM2  ───────┼───────────┤ PA9  (TIM1_CH2 — Motor 2 PWM)│
+│ PWM1 ────────┼───────────┤ PA8  (TIM1_CH1 — Motor 1)    │
+│ DIR2 ────────┼───────────┤ PA5  (DIR Motor 2)           │
+│ PWM2 ────────┼───────────┤ PA9  (TIM1_CH2 — Motor 2)    │
 │ GND  ────────┼───────────┤ GND                          │
-│ M1A/M1B ─────┼─DC Motor1 |                              │
-│ M2A/M2B ─────┼─DC Motor2 |                              │
+│ M1A/M1B ─────┼── DC Motor 1                             │
+│ M2A/M2B ─────┼── DC Motor 2                             │
 └──────────────┘           │                              │
                            │                              │
-Encoders (x2)              │                              │
+Encoders (×2)              │                              │
 ┌──────────────┐           │                              │
 │ A / B ───────┼───────────┤ TIM2 / TIM3 (encoder mode)   │
 └──────────────┘           └──────────────────────────────┘
 ```
+
+### Robot Prototype
+
+<p align="center">
+  <img width="500" height="345" src="https://github.com/user-attachments/assets/67871467-8eaf-4b0b-8f27-34ca6338d15b"/>
+  <img width="500" height="345" src="https://github.com/user-attachments/assets/0c0362a6-922c-489f-bd6a-196827e47cd7"/>
+</p>
 
 ---
 
 ## ⚙️ System Architecture
 
 ```
-┌───────────────────────────────────────────────────────┐
-│                     FreeRTOS Scheduler                │
-├─────────────┬──────────────────┬──────────────────────┤
-│  IMU Task   │  Encoder Task    │    Control Task      │
-│    (5ms)    │     (5ms)        │       (5ms)          │
-│             │                  │                      │
-│ MPU6050     │  Quadrature      │  State Estimation    │
-│ Read accel  │  Encoder Read    │  → Comp. Filter      │
-│ + gyro      │  velocity &      │                      │
-│             │  position        │  LQR Controller      │
-│             │                  │  u = -Kx             │
-│             │                  │                      │
-│             │                  │  PWM Output          │
-└─────────────┴──────────────────┴──────────────────────┘
-                                          │
-                                  ┌───────┴────────┐
-                               Motor A          Motor B
-                             (Left wheel)   (Right wheel)
+┌──────────────────────────────────────────────────────────────┐
+│                        FreeRTOS Scheduler                    │
+├──────────────────┬───────────────────┬───────────────────────┤
+│    IMU Task      │   Encoder Task    │     Control Task      │
+│  Priority: High  │ Priority: Normal  │  Priority: RealTime   │
+│     5 ms         │      5 ms         │        5 ms           │
+│                  │                   │                       │
+│  MPU6050 read    │  TIM2/TIM3 read   │   State vector x      │
+│  Complementary   │  Velocity &       │   u = −Kx             │
+│  filter → ψ, ψ̇   │  position → θ, θ̇  │   PWM clamp ±100%     │
+└──────────────────┴───────────────────┴───────────────────────┘
+                                               │
+                                   ┌───────────┴──────────┐
+                                Motor Left            Motor Right
+                              (TIM1_CH1 PWM)        (TIM1_CH2 PWM)
 ```
 
 ---
 
-## 🧮 LQR Control Algorithm
-<p align="center">
-<img width="285" height="336" alt="image" src="https://github.com/user-attachments/assets/d270bff4-e59b-49e3-a8a3-679dd2655822" /> </p>
-  
-<p align="center">
-<img width="351" height="336" alt="image" src="https://github.com/user-attachments/assets/c611fb85-cd80-400b-bebc-c845bd3bdba8" />
-<img width="331" height="336" alt="image" src="https://github.com/user-attachments/assets/208daeac-8e44-4ad2-bb50-34a405983d00" />
+## 🧮 Mathematical Modeling & LQR Design
 
-</p>
+### Coordinate System & State Variables
 
 | Symbol                | Unit   | Description                        |
 |-----------------------|--------|------------------------------------|
@@ -134,10 +138,7 @@ Encoders (x2)              │                              │
 | ψ                     | Rad    | Tilt angle of the robot body       |
 | ϕ                     | Rad    | Rotation angle of the robot        |
 
-
-The dynamics of the two wheeled self-balancing robot can be described by the following system of differential equations:
-
-### Parameters Robot
+### Physical Parameters
 
 | Symbol       | Unit      | Description                                           |
 |--------------|-----------|-------------------------------------------------------|
@@ -168,10 +169,7 @@ The dynamics of the two wheeled self-balancing robot can be described by the fol
 | $` i_l, i_r `$ | A        | Current through the left and right motors             |
 | $` v_l, v_r `$ | V        | Voltage across the left and right motors              |              |
 
-
-### Dynamic equations
-
-Apply the Euler-Lagrange equations to the robot's dynamics:
+### Euler-Lagrange Dynamics
 
 ```math
 \frac{d}{dt} \left( \frac{\partial L}{\partial \dot{q}_i} \right) - \frac{\partial L}{\partial \theta_k} = F_k
@@ -215,11 +213,13 @@ We need to reformulate these equations as follows:
 
 Solve equations (1), (2), and (3) using MATLAB and the `solve` function.
 
-<img width="1217" height="252" alt="image" src="https://github.com/user-attachments/assets/f0279c36-2ce6-4640-9d3b-c14f62e8b086" />
+### Linearization & State-Space Representation
+
+<img width="1247" height="213" alt="image" src="https://github.com/user-attachments/assets/35d9f9cd-5d35-4439-b395-72e595cb3271" />
 
 Result calculation
 
-<img width="1332" height="374" alt="image" src="https://github.com/user-attachments/assets/cd658a2f-619b-4ac3-80cc-d2ff944c0349" />
+<img width="1325" height="352" alt="image" src="https://github.com/user-attachments/assets/a4cd295b-a8df-4669-8e85-34b74ff4bbb5" />
 
 ### Linearize the motion equations 
 
@@ -286,15 +286,37 @@ The final state-space function equation will take the form:
 ```
 Elements of both matrices will be calculated by MATLAB.
 
+**MATLAB computation:**
+
+```matlab
+% matlab/CacthongsoLQRmatlab.m
+Q = diag([q1, q2, q3, q4, q5, q6]);  % Penalize state deviations
+R = diag([r1, r2]);                    % Penalize control effort
+
+K = lqr(A0, B0, Q, R);               % Solve ARE → optimal K
+```
+
+**Computed gain vector (example tuning for forward/backward balance):**
+
+```c
+/* freertos.c — Control_Task */
+/* K maps reduced state [θ, θ̇, ψ, ψ̇] to motor voltage */
+const float K[4] = {-6.1237f, 3.2553f, -30.8598f, -7.1295f};
+```
+
+> **Note:** The implemented controller uses a reduced 4-state vector $[\theta,\ \dot{\theta},\ \psi,\ \dot{\psi}]^\top$ for the balance plane. Yaw control ($\phi$, $\dot{\phi}$) is handled independently via differential motor voltage.
+
 ---
 
 ## 🧵 FreeRTOS Task Structure
 
-| Task | Priority | Period | Function |
+| Task | Priority | Period | Responsibility |
 |---|---|---|---|
-| `Encoder_Task` | Normal | 5 ms | Read quadrature encoder, compute velocity |
-| `IMU_Task` | High | 5 ms | Read MPU6050 via I²C, compute angle |
-| `Control_Task` | Highest | 5 ms | Run LQR, output PWM to BTS7960 |
+| `IMU_Task` | High | 5 ms | Read MPU6050 via I²C; apply complementary filter to compute tilt angle $\psi$ and $\dot{\psi}$ |
+| `Encoder_Task` | Normal | 5 ms | Read TIM2/TIM3 quadrature counters; compute wheel velocity $\dot{\theta}$ and position $\theta$ |
+| `Control_Task` | Highest | 5 ms | Assemble state vector; compute `u = −Kx`; apply dead-zone compensation; output PWM |
+
+All tasks use `vTaskDelayUntil()` for deterministic, jitter-minimized periodic execution at **200 Hz**.
 
 ---
 
@@ -304,23 +326,23 @@ Elements of both matrices will be calculated by MATLAB.
 2wheel_balance_LQR/
 ├── Core/
 │   ├── Inc/
-│   │   ├── mpu6050.h          # MPU6050 library header
-│   │   ├── encoder.h          # Encoder header
-│   │   ├── encoderspeed.h     # Position and Velocity header
-│   │   ├── motor.h            # PWM motor control library header
-│   │   ├── FreeRTOSConfig.h   # Header file for freetos configuration
-│   │   └── param.h            # Robot Parameters header
+│   │   ├── mpu6050.h           # MPU6050 driver interface
+│   │   ├── encoder.h           # Encoder timer configuration
+│   │   ├── encoderspeed.h      # Velocity & position computation
+│   │   ├── motor.h             # PWM motor control interface
+│   │   ├── FreeRTOSConfig.h    # FreeRTOS kernel configuration
+│   │   └── param.h             # Robot physical parameters
 │   └── Src/
-│       ├── main.c             # IPU, Encoder and FreeRTOS init
-│       ├── mpu6050.c          # I2C read + DMP/raw data
-│       ├── encoderspeed.c     # Get position and velocity from encoder
-│       ├── encoder.c          # TIM2/TIM3 encoder mode
-│       ├── motor.c            # PWM motor control library
-│       ├── freetos.c          # Tasks schedule for robot control
-│       └── param.c            # Robot Parameters 
-├── Drivers/                   # STM32 HAL + FreeRTOS
+│       ├── main.c              # Peripheral & FreeRTOS initialization
+│       ├── mpu6050.c           # I²C driver, raw data + complementary filter
+│       ├── encoder.c           # TIM2/TIM3 quadrature mode setup
+│       ├── encoderspeed.c      # Velocity & position from encoder counts
+│       ├── motor.c             # PWM generation & dead-zone compensation
+│       ├── freertos.c          # Task definitions & LQR control loop
+│       └── param.c             # Physical parameter values
+├── Drivers/                    # STM32 HAL + FreeRTOS (CubeMX-generated)
 ├── matlab/
-│   └── lqr_design.m           # Offline LQR gain computation
+│   └── lqr_design.m            # Symbolic modeling, linearization & LQR gain computation
 └── README.md
 ```
 
@@ -330,83 +352,92 @@ Elements of both matrices will be calculated by MATLAB.
 
 ### Requirements
 
-- **IDE**: STM32CubeIDE (v1.12+)
-- **Toolchain**: ARM GCC
-- **Programmer**: ST-Link V2
-- **Library**: STM32 HAL + FreeRTOS (configured via STM32CubeMX)
+| Tool | Version |
+|---|---|
+| STM32CubeIDE | v1.12 or later |
+| Toolchain | ARM GCC (bundled with CubeIDE) |
+| Programmer | ST-Link V2 |
+| MATLAB | R2021a or later (for LQR design script) |
+
+### Build & Flash
+
+```bash
+# Clone the repository
+git clone https://github.com/<your-username>/2wheel_balance_LQR.git
+
+# Open in STM32CubeIDE → Import Existing Project
+# Build: Project → Build All  (Ctrl+B)
+# Flash: Run → Debug (with ST-Link connected)
+```
 
 ### Tuning LQR Gains
 
-Run the MATLAB script to compute **K** for your physical robot parameters:
+1. Update physical parameters in `matlab/lqr_design.m` to match your robot.
+2. Run the script — it outputs the $A_0$, $B_0$ matrices and optimal $K$.
+3. Copy $K$ into `freertos.c`:
 
-```matlab
-% matlab/lqr_design.m
-A = [...];   % System matrix (from physical model)
-B = [...];   % Input matrix
-Q = diag([100, 1, 10, 1]);  % State cost — tune these
-R = 0.1;                    % Input cost
-
-K = lqr(A, B, Q, R);
-```
-
-Then paste **K** into `freetos.c`, in Control_Task:
 ```c
-const float K[4] = {-6.1237f, 3.2553f , -30.8598f, -7.1295f};
+const float K[4] = {k1, k2, k3, k4};
 ```
+
+**Tuning guidelines for $Q$ and $R$:**
+
+| Adjustment | Effect |
+|---|---|
+| Increase $Q_{33}$ (tilt penalty) | Stiffer upright response, may increase oscillation |
+| Increase $R$ (input penalty) | Smoother motor commands, slower response |
+| Decrease $R$ | Faster response, risk of instability at high gains |
 
 ---
 
-## 📊 Results
+## 📊 Results & Performance
 
-- ✅ Stable self-balancing achieved on flat surface
-- ✅ Reduced oscillation compared to classic PID
-- ✅ Real-time 500 Hz control loop via FreeRTOS
-- ✅ Smooth motor response with BTS7960 high-current driver
+| Metric | Result |
+|---|---|
+| Steady-state balance | ✅ Stable on flat surface |
+| Control loop rate | 200 Hz (5 ms period, FreeRTOS) |
+| Tilt recovery | Recovers from ~±10° perturbation |
+| Oscillation vs. PID | Reduced steady-state oscillation |
+| Motor response | Smooth with dead-zone compensation |
 
 ---
 
 ## ⚠️ Challenges & Solutions
 
-| Challenge | Solution |
-|---|---|
-| IMU sensor noise | Complementary filter (α = 0.8) + MPU6050 DLPF enabled |
-| Motor dead-zone | Dead-zone compensation offset in PWM output stage |
-| FreeRTOS timing jitter | High-priority tasks with fixed-period `vTaskDelayUntil` |
-| LQR gain tuning | Iterative Q/R adjustment starting from conservative values |
-| High-gain instability | Anti-windup + PWM clamping to ±100% duty cycle |
+| Challenge | Root Cause | Solution |
+|---|---|---|
+| IMU sensor noise | Accelerometer vibration from motors | Complementary filter (α = 0.98) + MPU6050 hardware DLPF |
+| Motor dead-zone | Static friction below PWM threshold | Feed-forward offset applied when `\|u\| > 0` |
+| FreeRTOS timing jitter | Task preemption delays | `vTaskDelayUntil()` for absolute-time periodic scheduling |
+| LQR gain instability | Over-aggressive initial Q values | Conservative initial Q/R → incremental increase with live testing |
+| PWM saturation | High tilt → excessive control effort | Output clamped to ±100% duty cycle |
 
 ---
 
 ## 🔮 Future Improvements
 
-- [ ] **Kalman Filter** — replace complementary filter for better noise rejection
-- [ ] **Nonlinear / MPC control** — handle large angle perturbations
-- [ ] **ROS 2 integration** — high-level navigation and path planning
-- [ ] **Adaptive LQR** — online gain scheduling based on load/terrain
-- [ ] **LiDAR / vision** — obstacle avoidance and autonomous navigation
-- [ ] **Wireless tuning** — real-time parameter adjustment via Bluetooth/Wi-Fi
+- [ ] **Kalman Filter** — replace complementary filter for optimal state estimation under noise
+- [ ] **Model Predictive Control (MPC)** — handle large-angle perturbations beyond linearization validity
+- [ ] **Adaptive LQR** — online gain scheduling based on payload or terrain changes
+- [ ] **ROS 2 Integration** — high-level navigation, teleoperation, and path planning
+- [ ] **LiDAR / Vision** — obstacle detection and autonomous navigation
 
 ---
 
-## 🎬 Demo Video
+## 🎬 Demo
 
-▶️ [Watch on YouTube](#) *(update link)*
-
----
-
-## 👤 Author
-
-**Phan Thanh Dien**
-- GitHub: [@PhanThanhDien](https://github.com/PhanThanhDien)
+https://github.com/user-attachments/assets/6e99f990-90c9-4651-b2df-fd0c42832a3c
 
 ---
 
 ## 📄 License
 
-This project is intended for **educational and research purposes only**.
+This project is developed for **educational and research purposes**.
+Feel free to reference or build upon this work with attribution.
 
 ---
 
 <p align="center">
-  Made with ❤️ — STM32 · LQR · FreeRTOS · MPU6050
+  Built with STM32 · LQR · FreeRTOS · MPU6050 · MATLAB
 </p>
+
