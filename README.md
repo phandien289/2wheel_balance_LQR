@@ -18,7 +18,8 @@
 ## 📷 Robot Prototype
 
 <p align="center">
-  <img src="your_robot_image.png" alt="Self-Balancing Robot" width="500"/>
+  <img width="500" height="345" alt="543882059248884855" src="https://github.com/user-attachments/assets/67871467-8eaf-4b0b-8f27-34ca6338d15b" />
+  <img width="500" height="345" alt="2aOboQZs0OPH10wclpTMCuWFinT5sMIP2QIX7ABM" src="https://github.com/user-attachments/assets/0c0362a6-922c-489f-bd6a-196827e47cd7" />
 </p>
 
 ---
@@ -41,12 +42,11 @@ The system integrates:
 
 | Feature | Description |
 |---|---|
-| ⚖️ Real-time balancing | LQR control loop running at ~500 Hz via FreeRTOS |
-| 📐 State estimation | Complementary filter fusing IMU + encoder data |
-| 🎛️ LQR optimal control | Minimizes state error and control effort simultaneously |
-| 🔄 Encoder feedback | Closed-loop velocity and position control |
-| 📡 UART debugging | Real-time telemetry and parameter monitoring |
-| 🧵 FreeRTOS tasks | Independent tasks for Encoders, IMU, and Control |
+| Real-time balancing | LQR control loop running at ~200Hz via FreeRTOS |
+| State estimation | Complementary filter fusing IMU + encoder data |
+| LQR optimal control | Minimizes state error and control effort simultaneously |
+| Encoder feedback | Closed-loop velocity and position control |
+| FreeRTOS tasks | Independent tasks for Encoders, IMU, and Control |
 
 ---
 
@@ -84,8 +84,8 @@ MDD10A Motor Driver        │                              │
 │ M1A/M1B ─────┼─DC Motor1 |                              │
 │ M2A/M2B ─────┼─DC Motor2 |                              │
 └──────────────┘           │                              │
-                           │ PA2  (USART2_TX — Debug)     │
-Encoders (x2)              │ PA3  (USART2_RX — Debug)     │
+                           │                              │
+Encoders (x2)              │                              │
 ┌──────────────┐           │                              │
 │ A / B ───────┼───────────┤ TIM2 / TIM3 (encoder mode)   │
 └──────────────┘           └──────────────────────────────┘
@@ -100,7 +100,7 @@ Encoders (x2)              │ PA3  (USART2_RX — Debug)     │
 │                     FreeRTOS Scheduler                │
 ├─────────────┬──────────────────┬──────────────────────┤
 │  IMU Task   │  Encoder Task    │    Control Task      │
-│  (500 Hz)   │  (500 Hz)        │    (500 Hz)          │
+│    (5ms)    │     (5ms)        │       (5ms)          │
 │             │                  │                      │
 │ MPU6050     │  Quadrature      │  State Estimation    │
 │ Read accel  │  Encoder Read    │  → Comp. Filter      │
@@ -120,49 +120,162 @@ Encoders (x2)              │ PA3  (USART2_RX — Debug)     │
 
 ## 🧮 LQR Control Algorithm
 
-### State-Space Model
+| Symbol                | Unit   | Description                        |
+|-----------------------|--------|------------------------------------|
+| $` \theta_{(l,r)} `$    | Rad    | Angle of the left and right wheels |
+| ψ                     | Rad    | Tilt angle of the robot body       |
+| ϕ                     | Rad    | Rotation angle of the robot        |
 
-The robot is modeled as a linearized inverted pendulum on wheels:
 
+The dynamics of the two wheeled self-balancing robot can be described by the following system of differential equations:
+
+### Parameters Robot
+
+| Symbol       | Unit      | Description                                           |
+|--------------|-----------|-------------------------------------------------------|
+| $` m `$      | Kg        | Mass of the wheel                                     |
+| $` M `$      | Kg        | Mass of the robot                                     |
+| $` R `$      | M         | Radius of the wheel                                   |
+| $` W `$      | M         | Width of the robot                                    |
+| $` D `$      | M         | Length of the robot                                   |
+| $` H `$      | M         | Height of the robot                                   |
+| $` L `$      | M         | Distance from the robot's center of mass to the axle  |
+| $` f_w `$    |           | Friction coefficient between the wheel and the plane  |
+| $` f_m `$    |           | Friction coefficient between the robot and the DC motor |
+| $` I_m `$    | kg·m²     | Moment of inertia of the DC motor                     |
+| $` R_m `$    | Ohm       | Resistance of the DC motor                            |
+| $` K_b `$    | V·sec/rad | EMF coefficient of the DC motor                       |
+| $` K_t `$    | Nm/A      | Torque coefficient of the DC motor                    |
+| $` N `$      |           | Gear reduction ratio                                  |
+| $` G `$      | m/s²      | Gravitational acceleration                            |
+| $` \theta `$ | Rad       | Average angle of the left and right wheels            |
+| $` \theta_{(l,r)} `$ | Rad | Angle of the left and right wheels                   |
+| $` \psi `$   | Rad       | Tilt angle of the robot body                          |
+| $` \phi `$   | Rad       | Rotation angle of the robot                           |
+| $` x_l, y_l, z_l `$ | M   | Coordinates of the left wheel                        |
+| $` x_r, y_r, z_r `$ | M   | Coordinates of the right wheel                       |
+| $` x_m, y_m, z_m `$ | M   | Average coordinates                                   |
+| $` F_\theta, F_\psi, F_\phi `$ | Nm  | Torque generated in different directions    |
+| $` F_{(l,r)} `$ | Nm      | Torque generated by the left and right motors         |
+| $` i_l, i_r `$ | A        | Current through the left and right motors             |
+| $` v_l, v_r `$ | V        | Voltage across the left and right motors              |              |
+
+
+### Dynamic equations
+
+Apply the Euler-Lagrange equations to the robot's dynamics:
+
+```math
+\frac{d}{dt} \left( \frac{\partial L}{\partial \dot{q}_i} \right) - \frac{\partial L}{\partial \theta_k} = F_k
 ```
-State vector:
-  x = [θ,     θ̇,     ψ ̇,      ψ̇,]
-       ↑      ↑       ↑        ↑
-     wheel   wheel   angle    angle
-      pos   velocity         velocity
 
-Control law:
-  u = -K · x
+Where
 
-Where:
-  K  = LQR gain matrix  [1×4]   (computed offline via MATLAB / Python)
-  u  = motor PWM command
-  x  = current state vector (from sensor fusion)
+>- $T$: The sum of the kinetic energy components of the system.
+>- $V$: The sum of the potential energy components of the system.
+>- $L_{\text{lagrange}} = T - V$: The Lagrangian multiplier.
+>- $q_i$: A generalized coordinate describing one of the degrees of freedom in the system.
+>- $F_k$: The total external force acting on the system corresponding to the generalized coordinates $q_i$.
+>- For the 3-degree-of-freedom model, there are three generalized coordinates: $q_1 = x$ (The horizontal motion); $q_2 = \theta$ (The tilt angle); $q_3 = \psi$ (The rotation angle of the robot body).
+
+Assuming at time $t = 0$, the robot moves in the positive direction of the x-axis. The dynamic equations describing the motion of the robot are as follows:
+```math
+(2m + M)R^2 + 2J_w + 2n^2 J_m) \ddot{\theta} + (MLR \cos \psi - 2n^2 J_m) \ddot{\psi} - MLR \psi^2 \sin \psi = \alpha(v_l + v_r) - 2(\beta + f_w) \dot{\theta} + 2\beta \dot{\psi} \quad (1)
 ```
 
-### LQR Design
-
-The LQR gain matrix **K** is solved by minimizing the cost function:
-
-```
-J = ∫ (xᵀQx + uᵀRu) dt
+```math
+(MLR \cos \psi - 2n^2 J_m) \ddot{\theta} + (ML^2 + J_{\psi} + 2n^2 J_m) \ddot{\psi} - MgL \sin \psi - ML^2 \dot{\phi}^2 \sin \psi \cos \psi = -\alpha(v_l + v_r) + 2\beta \dot{\theta} - 2\beta \dot{\psi} \quad (2)
 ```
 
-| Matrix | Role |
-|---|---|
-| **Q** | State cost — penalizes deviation in angle, velocity, position |
-| **R** | Input cost — penalizes large control effort (motor current) |
-| **K** | Optimal gain matrix — solved from Algebraic Riccati Equation |
-
-Increasing Q relative to R makes the controller more aggressive; increasing R produces smoother, more energy-efficient control.
-
-### State Estimation — Complementary Filter
-
-```c
-//Complimentary Filter
-angle = alpha * (angle + gyro_rate * dt) + (1.0f - alpha) * accel_angle;
-alpha = 0.98;
+```math
+\left(\frac{1}{2} mW^2 + J_{\phi} + \frac{W^2}{2R^2} (J_w + n^2 J_m) + ML^2 \sin^2 \psi\right) \ddot{\phi}^2 + 2ML^2 \dot{\psi} \dot{\phi} \sin \psi \cos \psi = \frac{W}{2R} \alpha(v_r - v_l) - \frac{W^2}{2R^2} (\beta + f_w) \dot{\phi} \quad (3)
 ```
+
+We need to reformulate these equations as follows:
+```math
+\left\{
+\begin{array}{l}
+\dot{\theta} = f_1(\dot{\theta}) \\
+\ddot{\theta} = f_2(\theta, \psi, \phi, \dot{\theta}, \dot{\psi}, \dot{\phi}, v_r, v_l) \\
+\dot{\psi} = f_3(\dot{\psi}) \\
+\ddot{\psi} = f_4(\theta, \psi, \phi, \dot{\theta}, \dot{\psi}, \dot{\phi}, v_r, v_l) \\
+\dot{\phi} = f_5(\dot{\phi}) \\
+\ddot{\phi} = f_6(\theta, \psi, \phi, \dot{\theta}, \dot{\psi}, \dot{\phi}, v_r, v_l)
+\end{array}
+\right\}
+```
+
+Solve equations (1), (2), and (3) using MATLAB and the `solve` function.
+
+![Dynamic Equation](Resources/Image/Picture3.png)
+
+Result calculation
+
+![Dynamic Equation](Resources/Image/Picture4.png)
+### Linearize the motion equations 
+
+Apply the state-space function to the robot system as follows:
+
+```math
+\dot{x} = A_0 x + B_0 u
+```
+
+Where $u$ is defined as:
+```math
+u = \begin{bmatrix} v_l \\ v_r \end{bmatrix}^\top
+```
+
+and $x$ is defined as:
+
+```math
+x = \begin{bmatrix} \theta \\ \dot{\theta} \\ \psi \\ \dot{\psi} \\ \phi \\ \dot{\phi} \end{bmatrix}^\top
+```
+
+Linearizing the robot at the equilibrium point (where all initial state variables are zero) allows for accurate determination of the matrices $A_0$ and $B_0$ for the equilibrium condition, where the robot is assumed to be stable.
+
+The working point chosen to proceed with the linearization of the robot to a linear form $\dot{X} = A_0 X + B_0 U$ is as follows:
+Working point:
+```math
+u_0 = \begin{bmatrix} 0 \\ 0 \end{bmatrix}^\top
+```
+and
+```math
+x_0 = \begin{bmatrix} 0 \\ 0 \\ 0 \\ 0 \\ 0 \\ 0 \end{bmatrix}^\top
+```
+
+$A_0$ is given by:
+```math
+A_0 = \begin{bmatrix}
+0 & 1 & 0 & 0 & 0 & 0 \\
+\left. \frac{\partial f_2}{\partial \theta} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_2}{\partial \dot{\theta}} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_2}{\partial \psi} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_2}{\partial \dot{\psi}} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_2}{\partial \phi} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_2}{\partial \dot{\phi}} \right|_{x=x_0, u=u_0} \\
+0 & 0 & 0 & 1 & 0 & 0 \\
+\left. \frac{\partial f_4}{\partial \theta} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_4}{\partial \dot{\theta}} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_4}{\partial \psi} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_4}{\partial \dot{\psi}} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_4}{\partial \phi} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_4}{\partial \dot{\phi}} \right|_{x=x_0, u=u_0} \\
+0 & 0 & 0 & 0 & 0 & 1 \\
+\left. \frac{\partial f_6}{\partial \theta} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_6}{\partial \dot{\theta}} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_6}{\partial \psi} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_6}{\partial \dot{\psi}} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_6}{\partial \phi} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_6}{\partial \dot{\phi}} \right|_{x=x_0, u=u_0}
+\end{bmatrix}
+```
+
+$B_0$ is given by:
+```math
+B_0 = \begin{bmatrix}
+0 & 0 \\
+\left. \frac{\partial f_2}{\partial v_l} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_2}{\partial v_r} \right|_{x=x_0, u=u_0} \\
+0 & 0 \\
+\left. \frac{\partial f_4}{\partial v_l} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_4}{\partial v_r} \right|_{x=x_0, u=u_0} \\
+0 & 0 \\
+\left. \frac{\partial f_6}{\partial v_l} \right|_{x=x_0, u=u_0} & \left. \frac{\partial f_6}{\partial v_r} \right|_{x=x_0, u=u_0}
+\end{bmatrix}
+```
+
+Using MATLAB to solve the system equations:
+The final state-space function equation will take the form:
+```math
+\dot{x} = A_0 x + B_0 u
+```
+```math
+\begin{bmatrix} \dot{\theta} \\ \ddot{\theta} \\ \dot{\psi} \\ \ddot{\psi} \\ \dot{\phi} \\ \ddot{\phi} \end{bmatrix} = \begin{bmatrix} 0 & 1 & 0 & 0 & 0 & 0 \\ 0 & a_{22} & a_{23} & a_{24} & 0 & 0 \\ 0 & 0 & 0 & 1 & 0 & 0 \\ 0 & a_{42} & a_{43} & a_{44} & 0 & 0 \\ 0 & 0 & 0 & 0 & 0 & 1 \\ 0 & 0 & 0 & 0 & 0 & a_{66} \end{bmatrix} \begin{bmatrix} \theta \\ \dot{\theta} \\ \psi \\ \dot{\psi} \\ \phi \\ \dot{\phi} \end{bmatrix} + \begin{bmatrix} 0 & 0 \\ b_{21} & b_{22} \\ 0 & 0 \\ b_{41} & b_{42} \\ 0 & 0 \\ b_{61} & b_{62} \end{bmatrix} \begin{bmatrix} v_l \\ v_r \end{bmatrix} \quad (5.4)
+```
+Elements of both matrices will be calculated by MATLAB.
 
 ---
 
@@ -227,12 +340,9 @@ R = 0.1;                    % Input cost
 K = lqr(A, B, Q, R);
 ```
 
-Then paste **K** into `lqr_controller.h`:
+Then paste **K** into `freetos.c`:
 ```c
-#define K_THETA      42.3f
-#define K_THETA_DOT   8.1f
-#define K_X           3.5f
-#define K_X_DOT       6.2f
+const K[4] = {..., ..., ..., ...};
 ```
 
 ---
