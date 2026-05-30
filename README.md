@@ -48,7 +48,7 @@ Classical PID controls a single output using one error signal. LQR operates on t
 |---|---|
 | Control algorithm | LQR optimal state-space control (`u = −Kx`) |
 | Control loop rate | 200 Hz via FreeRTOS `vTaskDelayUntil` |
-| State estimation | Complementary filter (α = 0.98) fusing IMU accelerometer + gyroscope |
+| State estimation | Complementary filter (α = 0.8) fusing IMU accelerometer + gyroscope |
 | Encoder feedback | Quadrature encoding via TIM2/TIM3 hardware timers |
 | Real-time scheduling | FreeRTOS preemptive multi-task, priority-assigned tasks |
 | Motor drive | MDD10A dual-channel H-Bridge, PWM with dead-zone compensation |
@@ -342,7 +342,8 @@ All tasks use `vTaskDelayUntil()` for deterministic, jitter-minimized periodic e
 │       └── param.c             # Physical parameter values
 ├── Drivers/                    # STM32 HAL + FreeRTOS (CubeMX-generated)
 ├── matlab/
-│   └── lqr_design.m            # Symbolic modeling, linearization & LQR gain computation
+│   └── CacthongsoLQRmatlab.m            # Symbolic modeling, linearization & LQR gain computation
+│   └── MoPhongXe2BanhCanBang_LQR.m      # Simulation for robot model
 └── README.md
 ```
 
@@ -359,20 +360,10 @@ All tasks use `vTaskDelayUntil()` for deterministic, jitter-minimized periodic e
 | Programmer | ST-Link V2 |
 | MATLAB | R2021a or later (for LQR design script) |
 
-### Build & Flash
-
-```bash
-# Clone the repository
-git clone https://github.com/<your-username>/2wheel_balance_LQR.git
-
-# Open in STM32CubeIDE → Import Existing Project
-# Build: Project → Build All  (Ctrl+B)
-# Flash: Run → Debug (with ST-Link connected)
-```
 
 ### Tuning LQR Gains
 
-1. Update physical parameters in `matlab/lqr_design.m` to match your robot.
+1. Update physical parameters in `matlab/CacthongsoLQRmatlab.m` to match your robot.
 2. Run the script — it outputs the $A_0$, $B_0$ matrices and optimal $K$.
 3. Copy $K$ into `freertos.c`:
 
@@ -384,7 +375,8 @@ const float K[4] = {k1, k2, k3, k4};
 
 | Adjustment | Effect |
 |---|---|
-| Increase $Q_{33}$ (tilt penalty) | Stiffer upright response, may increase oscillation |
+| Increase $Q_{i}$ (tilt penalty) | Stiffer upright response, may increase oscillation |
+| Decrease $Q_{i}$ | Reduce penalty on that state |
 | Increase $R$ (input penalty) | Smoother motor commands, slower response |
 | Decrease $R$ | Faster response, risk of instability at high gains |
 
@@ -406,7 +398,7 @@ const float K[4] = {k1, k2, k3, k4};
 
 | Challenge | Root Cause | Solution |
 |---|---|---|
-| IMU sensor noise | Accelerometer vibration from motors | Complementary filter (α = 0.98) + MPU6050 hardware DLPF |
+| IMU sensor noise | Accelerometer vibration from motors | Complementary filter (α = 0.8) + MPU6050 hardware DLPF |
 | Motor dead-zone | Static friction below PWM threshold | Feed-forward offset applied when `\|u\| > 0` |
 | FreeRTOS timing jitter | Task preemption delays | `vTaskDelayUntil()` for absolute-time periodic scheduling |
 | LQR gain instability | Over-aggressive initial Q values | Conservative initial Q/R → incremental increase with live testing |
